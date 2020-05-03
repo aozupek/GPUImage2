@@ -25,6 +25,10 @@ public class MovieInput: ImageSource {
     let yuvConversionShader:ShaderProgram
     let asset:AVAsset
     let videoComposition:AVVideoComposition?
+    let audioMix:AVAudioMix?
+    let playerItem:AVPlayerItem?
+    var playerItemOutput:AVPlayerItemVideoOutput?
+    var displayLink:CADisplayLink?
     var playAtActualSpeed:Bool
     
     // Time in the video where it should start.
@@ -71,10 +75,11 @@ public class MovieInput: ImageSource {
     var movieFramebuffer:Framebuffer?
     public var framebufferUserInfo:[AnyHashable:Any]?
     
-    // TODO: Someone will have to add back in the AVPlayerItem logic, because I don't know how that works
-    public init(asset:AVAsset, videoComposition: AVVideoComposition?, playAtActualSpeed:Bool = false, loop:Bool = false, audioSettings:[String:Any]? = nil) throws {
+    public init(asset:AVAsset, videoComposition: AVVideoComposition?, audioMix: AVAudioMix?, playerItem: AVPlayerItem?, playAtActualSpeed:Bool = false, loop:Bool = false, audioSettings:[String:Any]? = nil) throws {
         self.asset = asset
         self.videoComposition = videoComposition
+        self.audioMix = audioMix
+        self.playerItem = playerItem
         self.playAtActualSpeed = playAtActualSpeed
         self.loop = loop
         self.yuvConversionShader = crashOnShaderCompileFailure("MovieInput"){try sharedImageProcessingContext.programForVertexShader(defaultVertexShaderForInputs(2), fragmentShader:YUVConversionFullRangeFragmentShader)}
@@ -84,7 +89,7 @@ public class MovieInput: ImageSource {
     public convenience init(url:URL, playAtActualSpeed:Bool = false, loop:Bool = false, audioSettings:[String:Any]? = nil) throws {
         let inputOptions = [AVURLAssetPreferPreciseDurationAndTimingKey:NSNumber(value:true)]
         let inputAsset = AVURLAsset(url:url, options:inputOptions)
-        try self.init(asset:inputAsset, videoComposition: nil, playAtActualSpeed:playAtActualSpeed, loop:loop, audioSettings:audioSettings)
+        try self.init(asset:inputAsset, videoComposition: nil, audioMix: nil, playerItem: nil, playAtActualSpeed:playAtActualSpeed, loop:loop, audioSettings:audioSettings)
     }
     
     deinit {
@@ -113,7 +118,13 @@ public class MovieInput: ImageSource {
         // Cancel the thread just to be safe in the event we somehow get here with the thread still running.
         self.currentThread?.cancel()
         
-        self.currentThread = Thread(target: self, selector: #selector(beginReading), object: nil)
+        if let _ = playerItem {
+            self.currentThread = Thread(target: self, selector: #selector(beginPlayerItem), object: nil)
+        }
+        else {
+            self.currentThread = Thread(target: self, selector: #selector(beginReading), object: nil)
+        }
+        
         self.currentThread?.start()
     }
     
@@ -128,6 +139,64 @@ public class MovieInput: ImageSource {
     }
     
     // MARK: -
+    // MARK: Player Item
+    
+    var playerItemDelegate: DisplayLinkListener?
+    class DisplayLinkListener: NSObject, AVPlayerItemOutputPullDelegate {
+        private weak var movieInput: MovieInput?
+        init(with movieInput: MovieInput) {
+            super.init()
+            self.movieInput = movieInput
+        }
+        func outputMediaDataWillChange(_ sender: AVPlayerItemOutput) {
+            movieInput?.displayLink?.isPaused = false
+        }
+    }
+    
+    @objc func beginPlayerItem() {
+        guard self.displayLink == nil, self.playerItemOutput == nil else {
+            fatalError("MovieInput is already started with a playerItem!")
+        }
+        
+        let thread = Thread.current
+        
+        mach_timebase_info(&timebaseInfo)
+        
+        if(useRealtimeThreads) {
+            self.configureThread()
+        }
+        else if(playAtActualSpeed) {
+            thread.qualityOfService = .userInitiated
+        }
+        else {
+             // This includes synchronized encoding since the above vars will be disabled for it.
+            thread.qualityOfService = .default
+        }
+        
+        self.displayLink = CADisplayLink(target: self, selector: #selector(displayLinkCallback(_:)))
+        self.displayLink!.add(to: .main, forMode: .common)
+        self.displayLink!.isPaused = true
+        
+        let attrs = [kCVPixelBufferPixelFormatTypeKey as String:NSNumber(value:Int32(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange))]
+        self.playerItemOutput = AVPlayerItemVideoOutput(pixelBufferAttributes: attrs)
+        self.playerItemDelegate = DisplayLinkListener(with: self)
+        
+        self.playerItemOutput!.setDelegate(self.playerItemDelegate!, queue: standardProcessingQueue)
+        self.playerItem!.add(self.playerItemOutput!)
+        self.playerItemOutput!.requestNotificationOfMediaDataChange(withAdvanceInterval: 0.1)
+    }
+    
+    @objc func displayLinkCallback(_ sender: CADisplayLink) {
+        let nextVSync: CFTimeInterval = sender.timestamp + sender.duration
+        let outputItemTime: CMTime = playerItemOutput!.itemTime(forHostTime: nextVSync)
+        if let pixelBuffer = playerItemOutput!.copyPixelBuffer(forItemTime: outputItemTime, itemTimeForDisplay: nil) {
+            sharedImageProcessingContext.runOperationSynchronously { [weak self] in
+                self!.process(movieFrame: pixelBuffer, withSampleTime: outputItemTime)
+            }
+        }
+    }
+    
+    // MARK: -
     // MARK: Internal processing functions
     
     func createReader() -> AVAssetReader?
@@ -138,23 +207,32 @@ public class MovieInput: ImageSource {
             
             let assetReader = try AVAssetReader.init(asset: self.asset)
             
-            if(self.videoComposition == nil) {
-                let readerVideoTrackOutput = AVAssetReaderTrackOutput(track: self.asset.tracks(withMediaType: .video).first!, outputSettings:outputSettings)
+            if let videoComposition = self.videoComposition {
+                let readerVideoTrackOutput = AVAssetReaderVideoCompositionOutput(videoTracks: self.asset.tracks(withMediaType: .video), videoSettings: outputSettings)
+                readerVideoTrackOutput.videoComposition = videoComposition
                 readerVideoTrackOutput.alwaysCopiesSampleData = false
                 assetReader.add(readerVideoTrackOutput)
             }
             else {
-                let readerVideoTrackOutput = AVAssetReaderVideoCompositionOutput(videoTracks: self.asset.tracks(withMediaType: .video), videoSettings: outputSettings)
-                readerVideoTrackOutput.videoComposition = self.videoComposition
+                let readerVideoTrackOutput = AVAssetReaderTrackOutput(track: self.asset.tracks(withMediaType: .video).first!, outputSettings:outputSettings)
                 readerVideoTrackOutput.alwaysCopiesSampleData = false
                 assetReader.add(readerVideoTrackOutput)
             }
             
-            if let audioTrack = self.asset.tracks(withMediaType: .audio).first,
-                let _ = self.audioEncodingTarget {
-                let readerAudioTrackOutput = AVAssetReaderTrackOutput(track: audioTrack, outputSettings: audioSettings)
-                readerAudioTrackOutput.alwaysCopiesSampleData = false
-                assetReader.add(readerAudioTrackOutput)
+            if let _ = self.audioEncodingTarget {
+                if let audioMix = self.audioMix {
+                    let readerAudioTrackOutput = AVAssetReaderAudioMixOutput(audioTracks: self.asset.tracks(withMediaType: .audio), audioSettings: audioSettings)
+                    readerAudioTrackOutput.audioMix = audioMix
+                    readerAudioTrackOutput.alwaysCopiesSampleData = false
+                    assetReader.add(readerAudioTrackOutput)
+                }
+                else {
+                    if let audioTrack = self.asset.tracks(withMediaType: .audio).first {
+                        let readerAudioTrackOutput = AVAssetReaderTrackOutput(track: audioTrack, outputSettings: audioSettings)
+                        readerAudioTrackOutput.alwaysCopiesSampleData = false
+                        assetReader.add(readerAudioTrackOutput)
+                    }
+                }
             }
             
             self.startTime = self.requestedStartTime
