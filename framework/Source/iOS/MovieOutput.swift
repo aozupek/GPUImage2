@@ -34,6 +34,8 @@ public class MovieOutput: ImageConsumer, AudioEncodingTarget {
     let assetWriterVideoInput:AVAssetWriterInput
     var assetWriterAudioInput:AVAssetWriterInput?
     
+    public let outputURL: Foundation.URL
+    
     let assetWriterPixelBufferInput:AVAssetWriterInputPixelBufferAdaptor
     let size:Size
     private var isRecording = false
@@ -64,6 +66,7 @@ public class MovieOutput: ImageConsumer, AudioEncodingTarget {
         self.size = size
         
         assetWriter = try AVAssetWriter(url:URL, fileType:fileType)
+        outputURL = URL
         
         var localSettings:[String:Any]
         if let videoSettings = videoSettings {
