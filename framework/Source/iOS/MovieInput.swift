@@ -131,6 +131,10 @@ public class MovieInput: ImageSource {
     public func cancel() {
         self.currentThread?.cancel()
         self.currentThread = nil
+        self.displayLink?.invalidate()
+        self.displayLink = nil
+        self.playerItemOutput = nil
+        self.playerItemDelegate = nil
     }
     
     public func pause() {
