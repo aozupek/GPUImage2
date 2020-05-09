@@ -1,7 +1,8 @@
 import AVFoundation
 
 public protocol MovieInputDelegate: class {
-    func didFinishMovie()
+    func movieInputDidFinishMovie(_ movieInput: MovieInput)
+    func movieInput(_ movieInput: MovieInput, willDisplayFrameAt time: CMTime)
 }
 
 public class MovieInput: ImageSource {
@@ -340,7 +341,7 @@ public class MovieInput: ImageSource {
                 self.currentThread?.start()
             }
             else {
-                self.delegate?.didFinishMovie()
+                self.delegate?.movieInputDidFinishMovie(self)
                 self.completion?()
                 
                 self.synchronizedEncodingDebugPrint("MovieInput finished reading")
@@ -513,6 +514,7 @@ public class MovieInput: ImageSource {
         movieFramebuffer.userInfo = self.framebufferUserInfo
         self.movieFramebuffer = movieFramebuffer
         
+        self.delegate?.movieInput(self, willDisplayFrameAt: withSampleTime)
         self.updateTargetsWithFramebuffer(movieFramebuffer)
         
         if(self.runBenchmark || self.synchronizedEncodingDebug) {
