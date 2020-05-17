@@ -31,6 +31,7 @@ public class MovieInput: ImageSource {
     var playerItemOutput:AVPlayerItemVideoOutput?
     var displayLink:CADisplayLink?
     var playAtActualSpeed:Bool
+    public var processStillFrames:Bool = true
     
     // Time in the video where it should start.
     var requestedStartTime:CMTime?
@@ -194,7 +195,8 @@ public class MovieInput: ImageSource {
     @objc func displayLinkCallback(_ sender: CADisplayLink) {
         let nextVSync: CFTimeInterval = sender.timestamp + sender.duration
         let outputItemTime: CMTime = playerItemOutput!.itemTime(forHostTime: nextVSync)
-        if playerItemOutput!.hasNewPixelBuffer(forItemTime: outputItemTime) {
+
+        if processStillFrames || playerItemOutput!.hasNewPixelBuffer(forItemTime: outputItemTime) {
             if let pixelBuffer = playerItemOutput!.copyPixelBuffer(forItemTime: outputItemTime, itemTimeForDisplay: nil) {
                 sharedImageProcessingContext.runOperationSynchronously { [weak self] in
                     self!.process(movieFrame: pixelBuffer, withSampleTime: outputItemTime)
