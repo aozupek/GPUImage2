@@ -194,9 +194,11 @@ public class MovieInput: ImageSource {
     @objc func displayLinkCallback(_ sender: CADisplayLink) {
         let nextVSync: CFTimeInterval = sender.timestamp + sender.duration
         let outputItemTime: CMTime = playerItemOutput!.itemTime(forHostTime: nextVSync)
-        if let pixelBuffer = playerItemOutput!.copyPixelBuffer(forItemTime: outputItemTime, itemTimeForDisplay: nil) {
-            sharedImageProcessingContext.runOperationSynchronously { [weak self] in
-                self!.process(movieFrame: pixelBuffer, withSampleTime: outputItemTime)
+        if playerItemOutput!.hasNewPixelBuffer(forItemTime: outputItemTime) {
+            if let pixelBuffer = playerItemOutput!.copyPixelBuffer(forItemTime: outputItemTime, itemTimeForDisplay: nil) {
+                sharedImageProcessingContext.runOperationSynchronously { [weak self] in
+                    self!.process(movieFrame: pixelBuffer, withSampleTime: outputItemTime)
+                }
             }
         }
     }
