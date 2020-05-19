@@ -41,11 +41,7 @@ public struct CameraError: Error {
 let initialBenchmarkFramesToIgnore = 5
 
 public class Camera: NSObject, ImageSource, AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
-    public var location:PhysicalCameraLocation {
-        didSet {
-            // TODO: Swap the camera locations, framebuffers as needed
-        }
-    }
+    public private(set) var location:PhysicalCameraLocation
     public var runBenchmark:Bool = false
     public var logFPS:Bool = false
     public var audioEncodingTarget:AudioEncodingTarget? {
@@ -65,8 +61,8 @@ public class Camera: NSObject, ImageSource, AVCaptureVideoDataOutputSampleBuffer
     public let targets = TargetContainer()
     public weak var delegate: CameraDelegate?
     public let captureSession:AVCaptureSession
-    public let inputCamera:AVCaptureDevice!
-    public let videoInput:AVCaptureDeviceInput!
+    public var inputCamera:AVCaptureDevice!
+    public var videoInput:AVCaptureDeviceInput!
     public let videoOutput:AVCaptureVideoDataOutput!
     public var microphone:AVCaptureDevice?
     public var audioInput:AVCaptureDeviceInput?
@@ -186,6 +182,44 @@ public class Camera: NSObject, ImageSource, AVCaptureVideoDataOutputSampleBuffer
             self.videoOutput?.setSampleBufferDelegate(nil, queue:nil)
             self.audioOutput?.setSampleBufferDelegate(nil, queue:nil)
         }
+    }
+    
+    public func changeLocation(to location: PhysicalCameraLocation) throws {
+        guard let newInputCamera = location.device() else {
+            throw CameraError()
+        }
+        let newVideoInput = try AVCaptureDeviceInput(device: newInputCamera)
+        
+        captureSession.beginConfiguration()
+        
+        captureSession.removeInput(videoInput)
+        guard captureSession.canAddInput(newVideoInput) else {
+            captureSession.addInput(videoInput)
+            captureSession.commitConfiguration()
+            throw CameraError()
+        }
+        
+        captureSession.addInput(newVideoInput)
+        videoInput = newVideoInput
+        
+        var captureConnection: AVCaptureConnection!
+        for connection in videoOutput.connections {
+            for port in connection.inputPorts {
+                if port.mediaType == AVMediaType.video {
+                    captureConnection = connection
+                    captureConnection.isVideoMirrored = location == .frontFacing
+                }
+            }
+        }
+        
+        if captureConnection.isVideoOrientationSupported {
+            captureConnection.videoOrientation = .portrait
+        }
+        
+        captureSession.commitConfiguration()
+        inputCamera = newInputCamera
+        
+        self.location = location
     }
     
     public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
