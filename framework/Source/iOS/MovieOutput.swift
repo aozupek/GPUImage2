@@ -7,6 +7,10 @@ public protocol AudioEncodingTarget {
     func readyForNextAudioBuffer() -> Bool
 }
 
+public protocol MovieOutputDelegate: class {
+    func movieOutput(_ movieOutput: MovieOutput, didAppendFrameAt time: CMTime)
+}
+
 public enum MovieOutputError: Error, CustomStringConvertible {
     case startWritingError(assetWriterError: Error?)
     case pixelBufferPoolNilError
@@ -35,6 +39,8 @@ public class MovieOutput: ImageConsumer, AudioEncodingTarget {
     var assetWriterAudioInput:AVAssetWriterInput?
     
     public let outputURL: Foundation.URL
+    public weak var delegate: MovieOutputDelegate?
+    private var sessionStartTime: CMTime?
     
     let assetWriterPixelBufferInput:AVAssetWriterInputPixelBufferAdaptor
     let size:Size
@@ -205,6 +211,7 @@ public class MovieOutput: ImageConsumer, AudioEncodingTarget {
             if (self.previousFrameTime == nil) {
                 // This resolves black frames at the beginning. Any samples recieved before this time will be edited out.
                 self.assetWriter.startSession(atSourceTime: frameTime)
+                self.sessionStartTime = frameTime
             }
             
             self.previousFrameTime = frameTime
@@ -233,7 +240,11 @@ public class MovieOutput: ImageConsumer, AudioEncodingTarget {
                 self.synchronizedEncodingDebugPrint("Process frame output")
                 
                 try NSObject.catchException {
-                    if (!self.assetWriterPixelBufferInput.append(self.pixelBuffer!, withPresentationTime:frameTime)) {
+                    if (self.assetWriterPixelBufferInput.append(self.pixelBuffer!, withPresentationTime: frameTime)) {
+                        let deltaTime = CMTimeSubtract(frameTime, self.sessionStartTime!)
+                        self.delegate?.movieOutput(self, didAppendFrameAt: deltaTime)
+                    }
+                    else {
                         debugPrint("WARNING: Trouble appending pixel buffer at time: \(frameTime) \(String(describing: self.assetWriter.error))")
                     }
                 }
