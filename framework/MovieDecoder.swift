@@ -21,6 +21,7 @@ public class MovieDecoder {
     private(set) public var framebuffers: [Framebuffer] = []
     public var overriddenOutputSize:Size?
     private var decodingQueue = DispatchQueue(label: "com.reinarc.camcorder.decoder", qos: .background)
+    private var cancelFlag = false
     
     let yuvConversionShader:ShaderProgram
     var assetReader: AVAssetReader?
@@ -45,6 +46,7 @@ public class MovieDecoder {
                 fatalError("Decoding is already started!")
             }
             self.isDecoding = true
+            self.cancelFlag = false
             
             let fail = {
                 self.isDecoding = false
@@ -81,6 +83,11 @@ public class MovieDecoder {
             
             var error = false
             while(assetReader.status == .reading && !error) {
+                if self.cancelFlag {
+                    assetReader.cancelReading()
+                    break
+                }
+                
                 if let sampleBuffer = readerVideoTrackOutput.copyNextSampleBuffer() {
                     let currentSampleTime = CMSampleBufferGetOutputPresentationTimeStamp(sampleBuffer)
                     let movieFrame = CMSampleBufferGetImageBuffer(sampleBuffer)!
@@ -97,39 +104,53 @@ public class MovieDecoder {
             let succeed = assetReader.status == .completed
             
             assetReader.cancelReading()
-//            print("MovieDecoder: Decoding process finished.")
             
             self.assetReader = nil
             self.isDecoding = false
+            
             completion(succeed, cancelled)
         }
     }
     
-    public func cancelDecoding() {
+    public func cancelDecoding(completion: @escaping () -> ()) {
         guard isDecoding else {
             fatalError("Decoding is not started yet!")
         }
-        guard let assetReader = assetReader else {
-            fatalError("Current asset reader is nil!")
-        }
-        decodingQueue.sync {
-            assetReader.cancelReading()
+
+        cancelFlag = true
+   
+        DispatchQueue.global().async {
+            while self.isDecoding {
+                usleep(1000)
+            }
             print("Cancelled")
+            completion()
         }
     }
     
     public func clearFramebuffers() {
-        sharedImageProcessingContext.runOperationSynchronously {
-            guard !self.isDecoding else {
-                fatalError("Cannot clear framebuffers while decoding!")
+        let block: () -> () = {
+            sharedImageProcessingContext.runOperationAsynchronously {
+                let cache = self.framebuffers.first?.cache
+                self.framebuffers.forEach {
+                    $0.unlock()
+                }
+                self.framebuffers.removeAll()
+                cache?.purgeAllUnassignedFramebuffers()
+                print("Unloaded")
             }
-            let cache = self.framebuffers.first?.cache
-            self.framebuffers.forEach {
-                $0.unlock()
-            }
-            self.framebuffers.removeAll()
-            cache?.purgeAllUnassignedFramebuffers()
         }
+        
+        if isDecoding {
+            cancelDecoding {
+                block()
+            }
+        }
+        else {
+            block()
+        }
+        
+
     }
     
     func process(movieFrame:CVPixelBuffer, withSampleTime:CMTime) -> Bool {
