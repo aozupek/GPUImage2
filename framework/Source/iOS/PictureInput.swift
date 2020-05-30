@@ -22,7 +22,7 @@ public enum PictureInputError: Error, CustomStringConvertible {
     }
 }
 
-public class PictureInput: ImageSource {
+open class PictureInput: ImageSource {
     public let targets = TargetContainer()
     public private(set) var imageFramebuffer:Framebuffer?
     public var framebufferUserInfo:[AnyHashable:Any]?
