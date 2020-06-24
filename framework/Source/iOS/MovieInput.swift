@@ -48,7 +48,7 @@ public class MovieInput: ImageSource {
     public var completion: (() -> Void)?
     // Progress block of the video with a paramater value of 0-1.
     // Can be used to check video encoding progress. Not called from main thread.
-    public var progress: ((Double) -> Void)?
+    public var progress: ((CMTime, Double) -> Void)?
     
     public var synchronizedMovieOutput:MovieOutput? {
         didSet {
@@ -407,7 +407,7 @@ public class MovieInput: ImageSource {
             }
         }
         
-        self.progress?(currentSampleTime.seconds/duration.seconds)
+        self.progress?(currentSampleTime, currentSampleTime.seconds/duration.seconds)
         
         sharedImageProcessingContext.runOperationSynchronously{
             self.process(movieFrame:sampleBuffer)
