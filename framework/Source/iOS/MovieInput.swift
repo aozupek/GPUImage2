@@ -35,6 +35,8 @@ public class MovieInput: ImageSource {
     
     // Time in the video where it should start.
     var requestedStartTime:CMTime?
+    // Time in the video where it should end.
+    var requestedEndTime: CMTime?
     // Time in the video where it started.
     var startTime:CMTime?
     // Time according to device clock when the video started.
@@ -105,8 +107,9 @@ public class MovieInput: ImageSource {
     // MARK: -
     // MARK: Playback control
     
-    public func start(atTime: CMTime) {
-        self.requestedStartTime = atTime
+    public func start(from: CMTime, to: CMTime? = nil) {
+        self.requestedStartTime = from
+        self.requestedEndTime = to
         self.start()
     }
     
@@ -246,9 +249,14 @@ public class MovieInput: ImageSource {
             
             self.startTime = self.requestedStartTime
             if let requestedStartTime = self.requestedStartTime {
-                assetReader.timeRange = CMTimeRange(start: requestedStartTime, duration: .positiveInfinity)
+                var duration: CMTime = .positiveInfinity
+                if let requestedEndTime = requestedEndTime {
+                    duration = CMTimeSubtract(requestedEndTime, requestedStartTime)
+                }
+                assetReader.timeRange = CMTimeRange(start: requestedStartTime, duration: duration)
             }
             self.requestedStartTime = nil
+            self.requestedEndTime = nil
             self.currentTime = nil
             self.actualStartTime = nil
             
@@ -372,14 +380,19 @@ public class MovieInput: ImageSource {
         self.synchronizedEncodingDebugPrint("Process frame input")
         
         var currentSampleTime = CMSampleBufferGetOutputPresentationTimeStamp(sampleBuffer)
-        var duration = self.asset.duration // Only used for the progress block so its acuracy is not critical
+        
+        // Use duration of the current time range instead of asset.
+        //var duration = self.asset.duration // Only used for the progress block so its acuracy is not critical
+        let duration = assetReader.timeRange.duration
         
         self.currentTime = currentSampleTime
         
         if let startTime = self.startTime {
             // Make sure our samples start at kCMTimeZero if the video was started midway.
             currentSampleTime = CMTimeSubtract(currentSampleTime, startTime)
-            duration = CMTimeSubtract(duration, startTime)
+            
+            // No need to subtract startTime from duration because we are using the duration of current time range instead of asset.
+            //duration = CMTimeSubtract(duration, startTime)
         }
         
         if (self.playAtActualSpeed) {
