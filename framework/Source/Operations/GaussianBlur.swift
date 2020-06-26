@@ -5,7 +5,7 @@ let M_PI = 3.14159265359 // TODO: remove this once Foundation pulls this in on L
 
 import Foundation
 
-public class GaussianBlur: TwoStageOperation {
+open class GaussianBlur: TwoStageOperation {
     public var blurRadiusInPixels:Float {
         didSet {
             let (sigma, downsamplingFactor) = sigmaAndDownsamplingForBlurRadius(blurRadiusInPixels, limit:8.0, override:overrideDownsamplingOptimization)
