@@ -361,6 +361,7 @@
 		BCFF46FC1CBAF85000A0C521 /* TransformOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCFF46FB1CBAF85000A0C521 /* TransformOperation.swift */; };
 		BCFF46FE1CBB0C1F00A0C521 /* AverageColorExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCFF46FD1CBB0C1F00A0C521 /* AverageColorExtractor.swift */; };
 		BCFF47081CBB443B00A0C521 /* CameraConversion.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCFF47071CBB443B00A0C521 /* CameraConversion.swift */; };
+		C4766C3324ADF00000F0D78C /* SimulatorCamera.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4766C3124ADEC1300F0D78C /* SimulatorCamera.swift */; };
 		C4FA8A65247D150200F95B24 /* MovieDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4FA8A64247D150100F95B24 /* MovieDecoder.swift */; };
 		C4FA8A66247D150200F95B24 /* MovieDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4FA8A64247D150100F95B24 /* MovieDecoder.swift */; };
 /* End PBXBuildFile section */
@@ -707,6 +708,7 @@
 		BCFF46FF1CBB0D8900A0C521 /* AverageColor_GL.fsh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.glsl; name = AverageColor_GL.fsh; path = Source/Operations/Shaders/AverageColor_GL.fsh; sourceTree = "<group>"; };
 		BCFF47001CBB0D8900A0C521 /* AverageColor.vsh */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.glsl; name = AverageColor.vsh; path = Source/Operations/Shaders/AverageColor.vsh; sourceTree = "<group>"; };
 		BCFF47071CBB443B00A0C521 /* CameraConversion.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = CameraConversion.swift; path = Source/CameraConversion.swift; sourceTree = "<group>"; };
+		C4766C3124ADEC1300F0D78C /* SimulatorCamera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SimulatorCamera.swift; path = Source/iOS/SimulatorCamera.swift; sourceTree = "<group>"; };
 		C4FA8A64247D150100F95B24 /* MovieDecoder.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MovieDecoder.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -1138,6 +1140,7 @@
 				BC9E35141E524CE400B8604F /* YUVConversionVideoRange_GLES.fsh */,
 				BC9E350C1E524CB900B8604F /* MovieInput.swift */,
 				BC9E350D1E524CB900B8604F /* PictureInput.swift */,
+				C4766C3124ADEC1300F0D78C /* SimulatorCamera.swift */,
 			);
 			name = iOS;
 			sourceTree = "<group>";
@@ -1742,6 +1745,7 @@
 				BC9E35B21E5257A200B8604F /* GlassSphereRefraction.swift in Sources */,
 				BC9E35B51E5257AC00B8604F /* Sharpen.swift in Sources */,
 				BC9E35791E5256EE00B8604F /* SepiaToneFilter.swift in Sources */,
+				C4766C3324ADF00000F0D78C /* SimulatorCamera.swift in Sources */,
 				BC9E357A1E5256F100B8604F /* WhiteBalance.swift in Sources */,
 				BC9E35811E52570A00B8604F /* Convolution3x3.swift in Sources */,
 				BC9E358F1E52573300B8604F /* Erosion.swift in Sources */,
